@@ -127,6 +127,13 @@
         </div>
       </div>
 
+      <!-- Document counter -->
+      <div id="document-counter" style="display: none; text-align: center; margin-bottom: 10px;">
+        <button id="prev-doc-btn" class="btn btn-sm btn-outline-secondary" style="margin-right: 10px;" title="Previous document (Left arrow)">&larr;</button>
+        <small class="text-muted">Document <span id="current-doc-number">1</span> of <span id="total-doc-count">1</span></small>
+        <button id="next-doc-btn" class="btn btn-sm btn-outline-secondary" style="margin-left: 10px;" title="Next document (Right arrow)">&rarr;</button>
+      </div>
+
       <div id="document-contents" style="direction: ltr;">
         <p style="font-style: oblique; text-align: center;">{% trans %}Load a document on the left{% endtrans %}</p>
       </div>
@@ -184,7 +191,7 @@
   <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
     <form id="document-add-form" class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">{% trans "modal window title" %}Add a document{% endtrans %}</h5>
+        <h5 class="modal-title">{% trans "modal window title" %}Add documents{% endtrans %}</h5>
         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
           <span aria-hidden="true">&times;</span>
         </button>
@@ -193,10 +200,14 @@
         <div class="container">
           <div class="row">
             <div class="col-md-6 form-group">
-              <input type="text" class="form-control" id="document-add-name" name="document-add-name" placeholder="{% trans "form placeholder" %}Enter a document name{% endtrans %}" />
+              <label for="document-add-name">{% trans %}Document name prefix (optional){% endtrans %}</label>
+              <input type="text" class="form-control" id="document-add-name" name="document-add-name" placeholder="{% trans "form placeholder" %}Enter a name prefix{% endtrans %}" />
+              <small class="form-text text-muted">{% trans %}If empty, filenames will be used. For multiple files, numbers will be added.{% endtrans %}</small>
             </div>
             <div class="col-md-6 form-group">
-              <input type="file" class="form-control-file" id="document-add-file" name="document-add-file" required />
+              <label for="document-add-file">{% trans %}Select files{% endtrans %}</label>
+              <input type="file" class="form-control-file" id="document-add-file" name="document-add-file" multiple required />
+              <small class="form-text text-muted">{% trans %}You can select multiple files at once{% endtrans %}</small>
             </div>
           </div>
           <div class="row">
@@ -211,11 +222,18 @@
               </div>
             </div>
           </div>
-          <textarea class="form-control" id="document-add-description" name="document-add-description" placeholder="{% trans "document add form placeholder" %}Description{% endtrans %}"></textarea>
+          <div class="row" id="document-add-file-list" style="display: none;">
+            <div class="col-12">
+              <label>{% trans %}Selected files:{% endtrans %}</label>
+              <ul id="document-add-files-display" class="list-group">
+              </ul>
+            </div>
+          </div>
+          <textarea class="form-control" id="document-add-description" name="document-add-description" placeholder="{% trans "document add form placeholder" %}Description (will be applied to all files){% endtrans %}"></textarea>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="submit" class="btn btn-primary">{% trans "submit button" %}Import{% endtrans %}</button>
+        <button type="submit" class="btn btn-primary">{% trans "submit button" %}Import Documents{% endtrans %}</button>
         <button type="button" class="btn btn-secondary" data-dismiss="modal">{% trans %}Cancel{% endtrans %}</button>
       </div>
     </form>

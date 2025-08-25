@@ -1,3 +1,4 @@
+/env
 # SQLite database files
 *.sqlite3
 

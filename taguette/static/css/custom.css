@@ -293,8 +293,69 @@ a.dropdown-item:hover {
 }
 
 #document-view .highlight {
-  background-color: #ff0;
+  background-color: #ddd; /* Default gray for untagged highlights */
   color: black;
+}
+
+/* Automatic tag colors based on tag index */
+#document-view .highlight.tag-color-0 {
+  background-color: #ffeb3b; /* Yellow */
+  color: black;
+}
+
+#document-view .highlight.tag-color-1 {
+  background-color: #4caf50; /* Green */
+  color: white;
+}
+
+#document-view .highlight.tag-color-2 {
+  background-color: #2196f3; /* Blue */
+  color: white;
+}
+
+#document-view .highlight.tag-color-3 {
+  background-color: #ff9800; /* Orange */
+  color: black;
+}
+
+#document-view .highlight.tag-color-4 {
+  background-color: #9c27b0; /* Purple */
+  color: white;
+}
+
+#document-view .highlight.tag-color-5 {
+  background-color: #f44336; /* Red */
+  color: white;
+}
+
+#document-view .highlight.tag-color-6 {
+  background-color: #00bcd4; /* Cyan */
+  color: black;
+}
+
+#document-view .highlight.tag-color-7 {
+  background-color: #795548; /* Brown */
+  color: white;
+}
+
+#document-view .highlight.tag-color-8 {
+  background-color: #607d8b; /* Blue Grey */
+  color: white;
+}
+
+#document-view .highlight.tag-color-9 {
+  background-color: #8bc34a; /* Light Green */
+  color: black;
+}
+
+#document-view .highlight.tag-color-10 {
+  background-color: #ff5722; /* Deep Orange */
+  color: white;
+}
+
+#document-view .highlight.tag-color-11 {
+  background-color: #673ab7; /* Deep Purple */
+  color: white;
 }
 
 #hlinfo {

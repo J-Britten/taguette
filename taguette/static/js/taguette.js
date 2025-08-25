@@ -313,6 +313,44 @@ window.addEventListener('load', function() {
   })(jQuery);
 });
 
+// Document navigation event listeners
+window.addEventListener('load', function() {
+  // Button click handlers
+  var prevBtn = document.getElementById('prev-doc-btn');
+  var nextBtn = document.getElementById('next-doc-btn');
+  
+  if(prevBtn) {
+    prevBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      navigateToPreviousDocument();
+    });
+  }
+  
+  if(nextBtn) {
+    nextBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      navigateToNextDocument();
+    });
+  }
+  
+  // Keyboard navigation
+  document.addEventListener('keydown', function(e) {
+    // Only handle arrow keys when not typing in an input/textarea
+    if(e.target.tagName.toLowerCase() !== 'input' && 
+       e.target.tagName.toLowerCase() !== 'textarea' &&
+       !e.target.isContentEditable) {
+      
+      if(e.key === 'ArrowLeft' || e.keyCode === 37) {
+        e.preventDefault();
+        navigateToPreviousDocument();
+      } else if(e.key === 'ArrowRight' || e.keyCode === 39) {
+        e.preventDefault();
+        navigateToNextDocument();
+      }
+    }
+  });
+});
+
 function showSpinner() {
   $('#spinner-modal').modal('show');
 }
@@ -434,7 +472,7 @@ function splitAtPos(pos, after) {
 }
 
 // Highlight a described selection
-function highlightSelection(saved, id, clickedCallback, title) {
+function highlightSelection(saved, id, clickedCallback, title, colorClass) {
   console.log("Highlighting", saved);
   if(saved === null) {
     return;
@@ -452,6 +490,9 @@ function highlightSelection(saved, id, clickedCallback, title) {
      && !node.textContent.match(onlyWhitespace)) {
       var span = document.createElement('a');
       span.className = 'highlight highlight-' + id;
+      if(colorClass) {
+        span.className += ' ' + colorClass;
+      }
       span.setAttribute('data-highlight-id', '' + id);
       span.setAttribute('title', title);
       span.addEventListener('click', clickedCallback);
@@ -584,6 +625,9 @@ function updateDocumentsList() {
     documents_list.insertBefore(elem, before);
   }
   console.log("Documents list updated");
+  
+  // Update document counter when list changes
+  updateDocumentCounter(current_document);
 }
 
 updateDocumentsList();
@@ -634,56 +678,133 @@ function basename(filename) {
 
 document.getElementById('document-add-form').addEventListener('submit', function(e) {
   e.preventDefault();
-  console.log("Uploading document...");
+  console.log("Uploading documents...");
 
-  var form_data = new FormData();
-  var name = document.getElementById('document-add-name').value;
-  if(!name) {
-    name = basename(document.getElementById('document-add-file').value);
-    name = name.substring(0, 50);
+  var files = document.getElementById('document-add-file').files;
+  if(files.length === 0) {
+    alert(gettext("Please select at least one file"));
+    return;
   }
-  form_data.append('name', name);
-  form_data.append('description',
-                   document.getElementById('document-add-description').value);
-  form_data.append('file',
-                   document.getElementById('document-add-file').files[0]);
-  form_data.append('text_direction',
-                   document.getElementById('document-add-form').elements['document-add-direction'].value);
-  form_data.append('_xsrf', getCookie('_xsrf'));
 
-  var xhr = new XMLHttpRequest();
-  xhr.responseType = 'json';
-  xhr.open('POST', base_path + '/api/project/' + project_id + '/document/new');
+  var namePrefix = document.getElementById('document-add-name').value;
+  var description = document.getElementById('document-add-description').value;
+  var textDirection = document.getElementById('document-add-form').elements['document-add-direction'].value;
+  
+  var uploadPromises = [];
+  var totalFiles = files.length;
+  var completedFiles = 0;
+  var failedFiles = 0;
+  
   showSpinner();
-  xhr.onload = function() {
-    if(xhr.status == 200) {
+  
+  // Function to upload a single file
+  function uploadFile(file, index) {
+    return new Promise(function(resolve, reject) {
+      var form_data = new FormData();
+      
+      // Generate name for this file
+      var name;
+      if(namePrefix) {
+        if(totalFiles > 1) {
+          name = namePrefix + "_" + (index + 1);
+        } else {
+          name = namePrefix;
+        }
+      } else {
+        name = basename(file.name);
+        name = name.substring(0, 50);
+      }
+      
+      form_data.append('name', name);
+      form_data.append('description', description);
+      form_data.append('file', file);
+      form_data.append('text_direction', textDirection);
+      form_data.append('_xsrf', getCookie('_xsrf'));
+
+      var xhr = new XMLHttpRequest();
+      xhr.responseType = 'json';
+      xhr.open('POST', base_path + '/api/project/' + project_id + '/document/new');
+      
+      xhr.onload = function() {
+        if(xhr.status == 200) {
+          console.log("Document upload complete: " + name);
+          completedFiles++;
+          resolve({success: true, name: name, id: xhr.response.created});
+        } else {
+          console.error("Document upload failed: " + name + ", status", xhr.status);
+          var error = null;
+          try {
+            error = xhr.response.error;
+          } catch(e) {
+          }
+          if(!error) {
+            error = "Status " + xhr.status;
+          }
+          failedFiles++;
+          resolve({success: false, name: name, error: error});
+        }
+      };
+      
+      xhr.onerror = function(e) {
+        console.log("Document upload failed: " + name, e);
+        failedFiles++;
+        resolve({success: false, name: name, error: "Network error"});
+      };
+      
+      xhr.send(form_data);
+    });
+  }
+  
+  // Upload all files
+  for(var i = 0; i < files.length; i++) {
+    uploadPromises.push(uploadFile(files[i], i));
+  }
+  
+  // Wait for all uploads to complete
+  Promise.all(uploadPromises).then(function(results) {
+    hideSpinner();
+    
+    var successResults = results.filter(function(r) { return r.success; });
+    var failedResults = results.filter(function(r) { return !r.success; });
+    
+    var message = completedFiles + " documents uploaded successfully";
+    if(failedFiles > 0) {
+      message += "\n" + failedFiles + " documents failed to upload";
+      failedResults.forEach(function(result) {
+        message += "\n- " + result.name + ": " + result.error;
+      });
+    }
+    
+    alert(message);
+    
+    if(completedFiles > 0) {
       $(document_add_modal).modal('hide');
       document.getElementById('document-add-form').reset();
-      console.log("Document upload complete");
-      var doc_id = xhr.response.created;
-      var url = base_path + '/project/' + project_id + '/document/' + doc_id;
-      window.history.pushState({document_id: doc_id}, "Document " + doc_id, url);
-      loadDocument(doc_id);
-    } else {
-      console.error("Document upload failed: status", xhr.status);
-      var error = null;
-      try {
-        error = xhr.response.error;
-      } catch(e) {
-      }
-      if(!error) {
-        error = "Status " + xhr.status;
-      }
-      alert(gettext("Error uploading file!") + "\n\n" + error);
+      // Reload the page to show new documents
+      location.reload();
     }
-    hideSpinner();
-  };
-  xhr.onerror = function(e) {
-    console.log("Document upload failed:", e);
-    alert(gettext("Error uploading file!"));
-    hideSpinner();
+  });
+});
+
+// Add file selection display functionality
+document.getElementById('document-add-file').addEventListener('change', function(e) {
+  var files = e.target.files;
+  var fileList = document.getElementById('document-add-files-display');
+  var fileListContainer = document.getElementById('document-add-file-list');
+  
+  if(files.length > 0) {
+    fileList.innerHTML = '';
+    for(var i = 0; i < files.length; i++) {
+      var listItem = document.createElement('li');
+      listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
+      listItem.innerHTML = files[i].name + 
+        '<small class="text-muted">(' + (files[i].size / 1024).toFixed(1) + ' KB)</small>';
+      fileList.appendChild(listItem);
+    }
+    fileListContainer.style.display = 'block';
+  } else {
+    fileListContainer.style.display = 'none';
   }
-  xhr.send(form_data);
 });
 
 
@@ -1203,8 +1324,27 @@ function setHighlight(highlight) {
   var tag_names = highlight.tags.map(function(id) { return tags[id].path; });
   sortByKey(tag_names, function(path) { return path; });
   tag_names = tag_names.join(", ");
+  
+  // Determine color based on first tag
+  var colorClass = '';
+  if(highlight.tags.length > 0) {
+    var firstTagId = highlight.tags[0];
+    var firstTag = tags[firstTagId];
+    if(firstTag) {
+      // Get all unique tags in the project, sorted by path
+      var allTags = Object.values(tags);
+      allTags.sort(function(a, b) { return a.path.localeCompare(b.path); });
+      
+      // Find the index of this tag
+      var tagIndex = allTags.findIndex(function(tag) { return tag.id === firstTagId; });
+      if(tagIndex >= 0) {
+        colorClass = 'tag-color-' + (tagIndex % 12); // Cycle through 12 colors
+      }
+    }
+  }
+  
   try {
-    highlightSelection([highlight.start_offset, highlight.end_offset], id, editHighlight, tag_names);
+    highlightSelection([highlight.start_offset, highlight.end_offset], id, editHighlight, tag_names, colorClass);
     console.log("Highlight set:", highlight);
   } catch(error) {
     console.error(
@@ -1572,6 +1712,7 @@ function loadDocument(document_id) {
   if(document_id === null) {
     document_contents.style.direction = 'ltr';
     document_contents.innerHTML = '<p style="font-style: oblique; text-align: center;">' + gettext("Load a document on the left") + '</p>';
+    updateDocumentCounter(null);
     return;
   }
   showSpinner();
@@ -1642,12 +1783,103 @@ function loadDocument(document_id) {
 
     // Scroll up
     window.setTimeout(function() { window.scrollTo(0, 0); }, 0);
+    
+    // Update document counter
+    updateDocumentCounter(document_id);
   })
   .catch(function(error) {
     console.error("Failed to load document:", error);
     alert(gettext("Error loading document!") + "\n\n" + error);
   })
   .then(hideSpinner);
+}
+
+// Update document counter display
+function updateDocumentCounter(document_id) {
+  var counterDiv = document.getElementById('document-counter');
+  var currentDocNumber = document.getElementById('current-doc-number');
+  var totalDocCount = document.getElementById('total-doc-count');
+  var prevBtn = document.getElementById('prev-doc-btn');
+  var nextBtn = document.getElementById('next-doc-btn');
+  
+  if(document_id === null) {
+    // No document loaded
+    counterDiv.style.display = 'none';
+    return;
+  }
+  
+  // Find position based on document-link items in order
+  var documentListItems = document.querySelectorAll('#documents-list .document-link');
+  var currentIndex = -1;
+  var totalCount = documentListItems.length;
+  
+  // Find which position the current document is at
+  for(var i = 0; i < documentListItems.length; i++) {
+    var item = documentListItems[i];
+    // Check if this is the current document
+    if(item.classList.contains('document-link-current')) {
+      currentIndex = i + 1; // Use 1-based index
+      break;
+    }
+  }
+  
+  if(currentIndex > 0 && totalCount > 0) {
+    currentDocNumber.textContent = currentIndex;
+    totalDocCount.textContent = totalCount;
+    counterDiv.style.display = 'block';
+    
+    // Enable/disable navigation buttons
+    prevBtn.disabled = (currentIndex === 1);
+    nextBtn.disabled = (currentIndex === totalCount);
+  } else {
+    counterDiv.style.display = 'none';
+  }
+}
+
+// Navigate to previous document
+function navigateToPreviousDocument() {
+  var documentListItems = document.querySelectorAll('#documents-list .document-link');
+  var currentIndex = -1;
+  
+  // Find current document position
+  for(var i = 0; i < documentListItems.length; i++) {
+    if(documentListItems[i].classList.contains('document-link-current')) {
+      currentIndex = i;
+      break;
+    }
+  }
+  
+  // Navigate to previous if available
+  if(currentIndex > 0) {
+    var prevItem = documentListItems[currentIndex - 1];
+    var link = prevItem.querySelector('.document-link-a');
+    if(link) {
+      link.click();
+    }
+  }
+}
+
+// Navigate to next document
+function navigateToNextDocument() {
+  var documentListItems = document.querySelectorAll('#documents-list .document-link');
+  var currentIndex = -1;
+  
+  // Find current document position
+  for(var i = 0; i < documentListItems.length; i++) {
+    if(documentListItems[i].classList.contains('document-link-current')) {
+      currentIndex = i;
+      break;
+    }
+  }
+  
+  // Navigate to next if available
+  if(currentIndex >= 0 && currentIndex < documentListItems.length - 1) {
+    var nextItem = documentListItems[currentIndex + 1];
+    var link = nextItem.querySelector('.document-link-a');
+    if(link) {
+      link.click();
+    }
+  }
 }
 
 function loadTag(tag_path, page) {

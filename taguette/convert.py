@@ -67,6 +67,7 @@ PROM_CONVERT_QUEUE = prometheus_client.Gauge(
 
 
 HTML_EXTENSIONS = ('.htm', '.html', '.xhtml')
+TEXT_EXTENSIONS = ('.txt', '.text', '.md', '.markdown')
 
 
 template_env = jinja2.Environment(
@@ -467,6 +468,34 @@ async def to_html(body, content_type, filename, config):
     ext = os.path.splitext(filename)[1].lower()
     if ext in HTML_EXTENSIONS:
         return get_html_body(body)
+    elif ext in TEXT_EXTENSIONS:
+        # Handle plain text files directly
+        charset = chardet.detect(body)['encoding'] or 'utf-8'
+        try:
+            text = body.decode(charset)
+        except UnicodeDecodeError:
+            text = body.decode('utf-8', errors='replace')
+        
+        # Create proper HTML structure that will pass validation
+        # Split into paragraphs and escape HTML
+        import html
+        paragraphs = text.split('\n\n')
+        html_paragraphs = []
+        
+        for paragraph in paragraphs:
+            paragraph = paragraph.strip()
+            if paragraph:
+                # Escape HTML and convert single line breaks to <br>
+                escaped = html.escape(paragraph)
+                lines = escaped.split('\n')
+                paragraph_html = '<br>'.join(lines)
+                html_paragraphs.append(f'<p>{paragraph_html}</p>')
+        
+        if not html_paragraphs:
+            html_paragraphs = ['<p></p>']
+            
+        html_content = '\n'.join(html_paragraphs)
+        return html_content
     elif not ext:
         raise ConversionError("This file doesn't have an extension!")
     elif ext == '.doc':
